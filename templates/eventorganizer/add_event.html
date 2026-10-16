@@ -14,7 +14,8 @@
     <br>
     <div class="container mt-5">
         <h2 class="mb-4">Add Event</h2>
-        <form action="/add_event" method="post"> <!-- Add action attribute with the URL for form submission -->
+        <form action="/add_event" method="post">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"> <!-- Add action attribute with the URL for form submission -->
             <div class="form-group">
                 <label for="eventName">Event Name</label>
                 <input type="text" class="form-control" id="eventName" name="event_name" placeholder="Enter event name">

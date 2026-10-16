@@ -53,6 +53,7 @@
                     </div>
                     <div class="card-footer">
                         <form action="/delete_event" method="post">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="event_id" value="{{ event._id }}">
                             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                         </form>
@@ -84,6 +85,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'X-CSRF-Token': '{{ csrf_token() }}',
                         },
                         body: JSON.stringify({
                             event_id: eventId,

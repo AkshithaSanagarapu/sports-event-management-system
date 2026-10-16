@@ -24,6 +24,7 @@
     <div class="container">
         <h2>Raise Complaint</h2>
         <form action="/submit_complaint" method="post">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="complaint">Complaint:</label>
                 <textarea class="form-control" id="complaint" name="complaint" rows="5" required></textarea>

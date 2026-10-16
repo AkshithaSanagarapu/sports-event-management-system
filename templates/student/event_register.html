@@ -17,6 +17,7 @@
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <form action="/event_register" method="POST">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
                         <label for="event_name">Event Name:</label>
                         <select class="form-control" id="event_name" name="event_name" required>

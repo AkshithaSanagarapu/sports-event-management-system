@@ -62,6 +62,7 @@
                     <img src="{{ notification.photo_path }}" class="img-fluid" alt="Photo Preview">
                     {% endif %}
                     <form action="/delete_notification" method="post">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="notification_id" value="{{ notification._id }}">
                         <button type="submit" class="btn btn-danger btn-sm mt-2">Delete</button>
                     </form>

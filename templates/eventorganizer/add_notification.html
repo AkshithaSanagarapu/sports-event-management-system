@@ -16,6 +16,7 @@
     <div class="container mt-5">
         <h2>Add Notification</h2>
         <form action="/add_notification" method="post" enctype="multipart/form-data">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="fileUpload">File Upload</label>
                 <input type="file" class="form-control-file" id="fileUpload" name="file">

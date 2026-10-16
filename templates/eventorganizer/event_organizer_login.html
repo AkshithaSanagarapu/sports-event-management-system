@@ -12,7 +12,9 @@
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <h2 class="text-center mb-4">Event Organizer Login</h2>
-                <form action="/login/organizer" method="POST">
+                {% if error %}<p style="color:#b00020">{{ error }}</p>{% endif %}
+<form action="/login/organizer" method="POST">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
                         <label for="username">Username:</label>
                         <input type="text" class="form-control" id="username" name="username" required>

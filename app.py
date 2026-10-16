@@ -1,14 +1,19 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash, make_response, render_template_string, session
+from flask import abort, Flask, render_template, request, redirect, url_for, jsonify, send_file, flash, make_response, render_template_string, session
 from pymongo import MongoClient
 import random
+import secrets
+import hmac
+from functools import wraps
 import string
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from bson.objectid import ObjectId
+from bson.errors import InvalidId
 from bcrypt import checkpw
 import bcrypt
 from datetime import datetime
+from werkzeug.utils import secure_filename
 import os
 
 app = Flask(__name__)
@@ -23,11 +28,40 @@ events_collection = db['events']
 notifications_collection = db["notifications"]
 complaints_collection = db['complaints']
 proposals_collection = db['ground_proposals']
-oproposals_collection =db['organization_proposals)']
+oproposals_collection =db['organization_proposals)']  # Existing collection name retained for data compatibility
 registrations_collection = db['registrations']
 invoices_collection = db['invoices']
 
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(32)
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('COOKIE_SECURE', 'false').lower() == 'true'
+
+def require_role(role):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if session.get('role') != role:
+                abort(403)
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+@app.before_request
+def csrf_guard():
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        expected = session.get('_csrf_token')
+        provided = request.form.get('_csrf_token') or request.headers.get('X-CSRF-Token')
+        if not expected or not provided or not hmac.compare_digest(expected, provided):
+            abort(400, description='Missing or invalid CSRF token')
+
+@app.context_processor
+def csrf_context():
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_urlsafe(32)
+    return {'csrf_token': lambda: session['_csrf_token']}
+
 
 
 @app.route('/')
@@ -36,16 +70,19 @@ def main_screen():
 
 """NAV START"""
 @app.route('/nav/admin_nav')
+@require_role('admin')
 def admin_nav():
-    return render_template('admin_nav.html')
+    return render_template('nav/admin_nav.html')
 
 @app.route('/s_nav')
+@require_role('student')
 def student_navigation():
-    return render_template('s_nav.html')
+    return render_template('nav/s_nav.html')
 
 @app.route('/e_nav')
+@require_role('organizer')
 def event_navigation():
-    return render_template('e_nav.html')
+    return render_template('nav/e_nav.html')
 """NAV END"""
 
 """ADMIN START"""
@@ -58,7 +95,9 @@ def admin_login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        if ADMIN_PASSWORD and username == ADMIN_USERNAME and hmac.compare_digest(password, ADMIN_PASSWORD):
+            session.clear()
+            session['role'] = 'admin'
             # Redirect to admin dashboard upon successful login
             return redirect(url_for('admin_dashboard'))
         else:
@@ -67,6 +106,7 @@ def admin_login():
     return render_template('admin_login.html')
 
 @app.route('/admin/admin_dashboard')
+@require_role('admin')
 def admin_dashboard():    
     # Render admin dashboard template
     return render_template('admin_dashboard.html')
@@ -83,6 +123,7 @@ def logout():
 """ADMIN OPERATION"""
 # Route for rendering the add_event_organizer form
 @app.route('/add_event_organizer', methods=['GET'])
+@require_role('admin')
 def show_add_event_organizer_form():
     return render_template('add_event_organizer.html')
 
@@ -97,6 +138,7 @@ def generate_username(name):
     return username
 
 @app.route('/add_event_organizer', methods=['POST'])
+@require_role('admin')
 def add_event_organizer():
     name = request.form['name']
     email = request.form['email']
@@ -108,12 +150,12 @@ def add_event_organizer():
 
     # Check if the generated username already exists
     existing_organizer = organizers_collection.find_one({'username': username})
-    if existing_organizer:
-        # If the username already exists, generate a new one by appending a random suffix
-        username += ''.join(random.choices(string.digits, k=4))
+    while existing_organizer:
+        username = generate_username(name) + str(secrets.randbelow(1000000)).zfill(6)
+        existing_organizer = organizers_collection.find_one({'username': username})
 
     # Generate random password
-    password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+    password = secrets.token_urlsafe(18)
 
     # Hash the password
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -130,6 +172,7 @@ def add_event_organizer():
     organizers_collection.insert_one(organizer_data)
 
     # Send login credentials to the provided email
+    # For demonstration only: initial credentials are emailed. Use a reset-token flow in production.
     send_email(name, email, username, password)
 
     return redirect(url_for('show_add_event_organizer_form'))
@@ -159,6 +202,7 @@ def send_email(name, email, username, password):
         server.send_message(msg)
 
 @app.route('/student_list')
+@require_role('admin')
 def student_list():
     # Fetch all students from MongoDB
     students = students_collection.find()
@@ -166,6 +210,7 @@ def student_list():
 
 # Route to delete a student
 @app.route('/delete_student/<string:student_id>', methods=['POST'])
+@require_role('admin')
 def delete_student(student_id):
     # Delete the student from MongoDB based on the provided student_id
     students_collection.delete_one({'_id': ObjectId(student_id)})
@@ -176,6 +221,7 @@ def delete_student(student_id):
 """ORGANIERS LIST"""
 # Route for displaying organizers list
 @app.route('/admin/organizers_list')
+@require_role('admin')
 def organizers_list():
     # Fetch organizers from MongoDB
     organizers = list(organizers_collection.find())
@@ -183,6 +229,7 @@ def organizers_list():
 
 # Route for deleting an organizer
 @app.route('/admin/delete_organizer/<string:organizer_id>', methods=['POST'])
+@require_role('admin')
 def delete_organizer(organizer_id):
     # Delete organizer from MongoDB
     organizers_collection.delete_one({'_id': ObjectId(organizer_id)})
@@ -214,7 +261,7 @@ def signup_student():
     # Check if the student with the same roll number already exists
     existing_student = students_collection.find_one({'rollNumber': roll_number})
     if existing_student:
-        return render_template('signup_failure.html', message='Student with this roll number already exists!')
+        return 'Student with this roll number already exists!', 409
 
     # Insert new student record in MongoDB
     student_data = {
@@ -259,34 +306,38 @@ def login_student():
 
         if student and bcrypt.checkpw(password.encode('utf-8'), student['password'].encode('utf-8')):
             # Successful login
+            session.clear()
+            session['role'] = 'student'
             session['logged_in'] = True  # Set session variable to indicate user is logged in
             session['user_id'] = str(student['_id'])  # Set user_id in session
             return redirect(url_for('student_dashboard'))
         else:
             # Invalid credentials
-            return render_template('login_failure.html', message='Invalid email or password')
+            return render_template('student/login_student.html', error='Invalid email or password'), 401
 
     # For GET requests, render the login page
     return render_template('student/login_student.html')
 
 @app.route('/student_dashboard')
+@require_role('student')
 def student_dashboard():
     events = list(events_collection.find())
     # Check if the user is logged in
-    if session.get('logged_in'):
+    if session.get('role') == 'student':
         return render_template('student/student_dashboard.html', events=events)
     else:
         # If not logged in, redirect to the login page
         return redirect(url_for('login_student'))
 
 @app.route('/s_notifications')
+@require_role('student')
 def s_notifications():
     notifications = notifications_collection.find()
     return render_template('student/s_notifications.html', notifications=notifications)
 
 @app.route('/student_logout')
 def student_logout():
-    session.pop('logged_in', None)  # Remove 'logged_in' session variable
+    session.clear()
     return redirect(url_for('main_screen'))
 
 
@@ -311,25 +362,28 @@ def login_organizer():
         # Clear any existing session data
         session.clear()
         # Store username in session
+        session['role'] = 'organizer'
         session['username'] = username  
         # Redirect to event dashboard
         return redirect(url_for('event_dashboard'))  
     else:
         # Invalid credentials, render login failure template with message
-        return render_template('login_failure.html', message='Incorrect username or password')
+        return render_template('eventorganizer/event_organizer_login.html', error='Incorrect username or password'), 401
         
 
 
 @app.route('/event_dashboard')
+@require_role('organizer')
 def event_dashboard():
     
-    if 'username' in session:
+    if session.get('role') == 'organizer':
         events = list(events_collection.find())
         return render_template('eventorganizer/event_dashboard.html', events=events)
     else:
-        return redirect(url_for('eventorganizer/event_organizer_login'))
+        return redirect(url_for('event_organizer_login'))
 
 @app.route('/add_event', methods=['GET', 'POST'])
+@require_role('organizer')
 def add_event():
     if request.method == 'POST':
         event_name = request.form['event_name']
@@ -359,11 +413,13 @@ def add_event():
         return render_template('eventorganizer/add_event.html')
 
 @app.route('/event_added_successfully')
+@require_role('organizer')
 def event_added_successfully():
     return "Event added successfully!" 
 
 
 @app.route('/event_list')
+@require_role('organizer')
 def event_list():
     # Fetch events from MongoDB
     search_query = request.args.get('search_query')
@@ -384,6 +440,7 @@ def event_list():
 
 
 @app.route('/s_event_list')
+@require_role('student')
 def s_event_list():
     # Fetch events from MongoDB
     search_query = request.args.get('search_query')
@@ -403,6 +460,7 @@ def s_event_list():
     return render_template('student/s_event_list.html', events=events)
 
 @app.route('/delete_event', methods=['POST'])
+@require_role('organizer')
 def delete_event():
     event_id = request.form['event_id']
     # Delete event from MongoDB
@@ -411,6 +469,7 @@ def delete_event():
 
 
 @app.route('/update_event_status', methods=['POST'])
+@require_role('organizer')
 def update_event_status():
     data = request.json
     event_id = data.get('event_id')
@@ -423,15 +482,18 @@ def update_event_status():
         )
         return jsonify({'message': 'Event status updated successfully.'}), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.exception('Event status update failed')
+        return jsonify({'error': 'Unable to update event status'}), 500
 
 # Route for rendering the add_notification form
 @app.route('/add_notification', methods=['GET'])
+@require_role('organizer')
 def show_add_notification_form():
     return render_template('eventorganizer/add_notification.html')
 
 # Route for handling the form submission
 @app.route('/add_notification', methods=['POST'])
+@require_role('organizer')
 def add_notification():
     # Get form data
     notice = request.form['notice']
@@ -455,26 +517,34 @@ def add_notification():
 # Function to save file uploads to server
 def save_file_upload(file):
     if file:
-        filename = file.filename
-        file_path = os.path.join('uploads', filename)
+        filename = secure_filename(file.filename or '')
+        if not filename:
+            abort(400, description='Invalid filename')
+        allowed = {'.png', '.jpg', '.jpeg', '.pdf', '.txt'}
+        if os.path.splitext(filename)[1].lower() not in allowed:
+            abort(400, description='File type not allowed')
+        os.makedirs('uploads', exist_ok=True)
+        file_path = os.path.join('uploads', secrets.token_hex(12) + '_' + filename)
         file.save(file_path)
         return file_path
     return None
 
 @app.route('/notifications')
+@require_role('organizer')
 def notifications():
     notifications = notifications_collection.find()
     return render_template('eventorganizer/notifications.html', notifications=notifications)
 
 # Route to handle file download
 @app.route('/download_file/<file_id>')
+@require_role('organizer')
 def download_file(file_id):
     # Logic to fetch file path from MongoDB based on file_id
-    file_path = ...  # Fetch file path from MongoDB using file_id
-    return send_file(file_path, as_attachment=True)
+    abort(501, description='Download feature has not been implemented')
 
 # Route to handle notification deletion
 @app.route('/delete_notification', methods=['POST'])
+@require_role('organizer')
 def delete_notification():
     notification_id = request.form['notification_id']
     # Logic to delete notification from MongoDB based on notification_id
@@ -489,13 +559,15 @@ def delete_notification():
 """COMPLAINT"""
 # Route to render the raise complaint form
 @app.route('/raise_complaint', methods=['GET'])
+@require_role('student')
 def raise_complaint_form():
     return render_template('student/raise_complaint.html')
 
 @app.route('/submit_complaint', methods=['POST'])
+@require_role('student')
 def submit_complaint():
     # Check if the user is authenticated
-    if 'user_id' not in session:
+    if session.get('role') != 'student' or 'user_id' not in session:
         flash('Please log in to submit a complaint.', 'error')
         return redirect(url_for('login_student'))  # Redirect to the login page
 
@@ -509,7 +581,7 @@ def submit_complaint():
         # Extract user details from the student data
         name = student_data.get('name')
         branch = student_data.get('branch')
-        roll_number = student_data.get('roll_number')
+        roll_number = student_data.get('rollNumber')
         
         # Get complaint details from the form
         complaint = request.form['complaint']
@@ -531,6 +603,7 @@ def submit_complaint():
         return redirect(url_for('login_student'))
     
 @app.route('/fetch_complaints')
+@require_role('admin')
 def fetch_complaints():
     # Fetch complaints from MongoDB
     complaints = complaints_collection.find()
@@ -571,6 +644,7 @@ def ground_proposal_success():
 
 
 @app.route('/ground_requests')
+@require_role('admin')
 def ground_requests():
     # Fetch ground proposals from MongoDB
     proposals = list(proposals_collection.find())
@@ -610,6 +684,7 @@ def organization_proposal_success():
 
 
 @app.route('/organization_requests')
+@require_role('admin')
 def organization_requests():
     # Fetch ground proposals from MongoDB
     oproposals = list(oproposals_collection.find())
@@ -618,6 +693,7 @@ def organization_requests():
 
 """EVENT REG"""
 @app.route('/event_register', methods=['GET', 'POST'])
+@require_role('student')
 def event_register():
     if request.method == 'POST':
         # Process form submission
@@ -645,9 +721,10 @@ def event_register():
     return render_template('student/event_register.html', events=events)
 
 @app.route('/transaction', methods=['GET', 'POST'])
+@require_role('student')
 def transaction():
     if request.method == 'POST':
-        # Simulate payment success (for demo purposes)
+        # DEMO ONLY: this is not a real payment integration.
         payment_successful = True
 
         if payment_successful:
@@ -685,12 +762,14 @@ def transaction():
 
 
 @app.route('/registrations')
+@require_role('organizer')
 def registrations():
     # Fetch registration details from MongoDB
     registrations = list(registrations_collection.find())
     return render_template('eventorganizer/registrations.html', registrations=registrations)
 
 @app.route('/invoices')
+@require_role('student')
 def invoices():
     # Fetch invoice details from MongoDB
     invoices = list(invoices_collection.find())
@@ -731,11 +810,11 @@ def invoices():
 
 @app.route('/event_logout')
 def event_logout():
-    session.pop('username', None)  
+    session.clear()  
     return redirect(url_for('main_screen'))  
 
 """ORGANIER LOGIN END"""
 
 if __name__ == '__main__':
     # app.run(debug=True)
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='127.0.0.1', port=int(os.environ.get('PORT', '5001')))
