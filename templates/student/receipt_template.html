@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice</title>
+    <!-- Add any additional styling or meta tags here -->
+</head>
+<body>
+    <div class="fixed-top">
+        {% include 'nav/s_nav.html' %}
+    </div>
+    <br>
+    <div class="container">
+        <h2>Invoice</h2>
+        <hr>
+        <div>
+            <p><strong>Invoice ID:</strong> {{ invoice._id }}</p>
+            <p><strong>Event Name:</strong> {{ invoice.event_name }}</p>
+            <p><strong>User Name:</strong> {{ invoice.user_name }}</p>
+            <p><strong>Email:</strong> {{ invoice.email }}</p>
+            <p><strong>Contact Number:</strong> {{ invoice.contact_number }}</p>
+            <p><strong>Payment Status:</strong> {{ invoice.payment_status }}</p>
+            <p><strong>Payment Date:</strong> {{ invoice.payment_date }}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event List</title>
+    <!-- Link Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="fixed-top">
+        {% include 'nav/s_nav.html' %}
+    </div>
+    <br>
+
+    <div class="container mt-5">
+        <h2 class="text-center">Events</h2>
+        <div class="row">
+            <div class="col-md-6 offset-md-3 mb-4">
+                <form action="/s_event_list" method="GET">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Search Events" name="search_query">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" type="submit">Search</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="row">
+            {% for event in events %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ event.event_name }}</h5>
+                        <p class="card-text">Date: {{ event.datetime.strftime('%Y-%m-%d') }}</p>
+                        <p class="card-text">Time: {{ event.datetime.strftime('%H:%M') }}</p>
+                        <p class="card-text">Contact Number: {{ event.contact_number }}</p>
+                        <p class="card-text">Venue: {{ event.venue }}</p>
+                        <p class="card-text">Location: <a href="{{ event.location }}" target="_blank">{{ event.location }}</a></p>
+                        <p class="card-text">Description: {{ event.description }}</p>
+                        
+                        <!-- Display Status -->
+                        <p class="card-text">
+                            Status: <span>{{ event.status }}</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Link Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

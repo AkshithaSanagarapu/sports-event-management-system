@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoices</title>
+    <!-- Link Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Custom CSS -->
+    <style>
+        /* Additional custom styling */
+        .card {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="fixed-top">
+        {% include 'nav/s_nav.html' %}
+    </div>
+    <br>
+    <div class="container mt-5">
+        <h2 class="text-center">Invoices</h2>
+        <div class="row">
+            {% for invoice in invoices %}
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Invoice ID: {{ invoice._id }}</h5>
+                        <p class="card-text">Event Name: {{ invoice.event_name }}</p>
+                        <p class="card-text">User Name: {{ invoice.user_name }}</p>
+                        <p class="card-text">Email: {{ invoice.email }}</p>
+                        <p class="card-text">Contact Number: {{ invoice.contact_number }}</p>
+                        <p class="card-text">Payment Status: {{ invoice.payment_status }}</p>
+                        <p class="card-text">Payment Date: {{ invoice.payment_date }}</p>
+                        <!-- <a href="/download_receipt/{{ invoice._id }}" class="btn btn-primary">Download Receipt</a> -->
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Link Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications</title>
+    <!-- Link Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Custom CSS -->
+    <style>
+        /* Additional custom styling */
+        .card-columns {
+            column-count: 1;
+        }
+
+        @media (min-width: 576px) {
+            .card-columns {
+                column-count: 2;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .card-columns {
+                column-count: 3;
+            }
+        }
+
+        @media (min-width: 992px) {
+            .card-columns {
+                column-count: 4;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .card-columns {
+                column-count: 5;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation Bar -->
+    <div class="fixed-top">
+        {% include 'nav/e_nav.html' %}
+    </div>
+    <br>
+
+    <div class="container mt-5">
+        <h2>Notifications</h2>
+        <div class="card-columns mt-4">
+            {% for notification in notifications %}
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ notification.notice }}</h5>
+                    {% if notification.file_path %}
+                    <p><a href="{{ notification.file_path }}" download class="card-link">Download File</a></p>
+                    {% endif %}
+                    {% if notification.photo_path %}
+                    <p><a href="{{ notification.photo_path }}" target="_blank" class="card-link">View Photo</a></p>
+                    <img src="{{ notification.photo_path }}" class="img-fluid" alt="Photo Preview">
+                    {% endif %}
+                    <form action="/delete_notification" method="post">
+                        <input type="hidden" name="notification_id" value="{{ notification._id }}">
+                        <button type="submit" class="btn btn-danger btn-sm mt-2">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Link Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+
+</html>
